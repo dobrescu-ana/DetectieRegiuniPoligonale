@@ -107,7 +107,7 @@ class ImageItem:
         # the input image will be the resized one in order to identify the vertices of the polygons
         self.OriginalImage=Image.open(resizedPath + "_RESIZED_" + originalImageName)
 
-
+    # normalize the class matrices using MinMaxScaler
     def Normalize(self):
         min_max_scaler = preprocessing.MinMaxScaler()
         self.illustration = min_max_scaler.fit_transform(self.illustration)
@@ -115,6 +115,7 @@ class ImageItem:
         self.title = min_max_scaler.fit_transform(self.title)
         self.text = min_max_scaler.fit_transform(self.text)
 
+    # process the matrices and setup threshold to lowLimit = 0.7
     def ApplyLowLimit(self):
         for row in range(self.rows):
             for col in range(self.cols):
@@ -186,6 +187,7 @@ class ImageItem:
         resultedImage = Image.blend(self.OriginalImage, self.AllLayouts, 0.5)
         resultedImage.save(outputPath+"__OVERLAY_"+self.OriginalName)
 
+    # only for test by now
     def ApplyGaussianFilter(self):
         sigma_y = 500.0
         sigma_x = 500.0
@@ -195,6 +197,7 @@ class ImageItem:
         self.titleColor = sp.ndimage.filters.gaussian_filter(self.titleColor, sigma, mode='constant')
         self.textColor = sp.ndimage.filters.gaussian_filter(self.textColor, sigma, mode='constant')
     
+    # only for test by now
     def ApplyBorders(self):
         image=self.AllLayouts
         thresh = threshold_otsu(image)
