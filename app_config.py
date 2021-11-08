@@ -1,4 +1,5 @@
 lowLimit = 0.7
+regionArea=1000
 
 # Defined color legend for classes
 illustrationColor = "blue"

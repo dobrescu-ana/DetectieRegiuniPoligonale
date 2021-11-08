@@ -1,20 +1,19 @@
+from PIL import Image, ImageColor
+from sklearn import preprocessing
+import numpy as np
 import scipy as sp
+from app_config import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from app_config import (
-    lowLimit, illustrationColor, headlineColor, titleColor, textColor,
-    imagePath, resizedPath, csvPath, outputPath
-)
-
-from sklearn import preprocessing
-from PIL import Image, ImageColor
-
+from skimage import data
 from skimage.filters import threshold_otsu
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square
 from skimage.color import label2rgb
+from skimage.util import img_as_ubyte
+from skimage.io import imread
 
 
 class ImageItem:
@@ -257,31 +256,53 @@ class ImageItem:
     
     # only for test by now
     def ApplyBorders(self):
-        image = self.AllLayouts
-        thresh = threshold_otsu(image)
-        bw = closing(image > thresh, square(3))
+        self.OriginalUbyte = img_as_ubyte(imread(resizedPath + "_RESIZED_" + self.OriginalName, as_gray=False))
+        self.IllustrationUbyte = img_as_ubyte(imread(outputPath+"_ILLUSTRATION_"+self.OriginalName, as_gray=True))
+        self.HeadlineUbyte = img_as_ubyte(imread(outputPath+"_HEADLINE_"+self.OriginalName, as_gray=True))
+        self.TitleUbyte = img_as_ubyte(imread(outputPath+"_TITLE_"+self.OriginalName, as_gray=True))
+        self.TextUbyte = img_as_ubyte(imread(outputPath+"_TEXT_"+self.OriginalName, as_gray=True))
+        self.AllUbyte = img_as_ubyte(imread(outputPath+"_ALL_"+self.OriginalName, as_gray=True))
+        
+        illustration_label=label(self.IllustrationUbyte)
+        headline_label=label(self.HeadlineUbyte)
+        title_label=label(self.TitleUbyte)
+        text_label=label(self.TextUbyte)
+    
+        fig, ax = plt.subplots(figsize=(self.cols/100, self.rows/100))
+        ax.imshow(self.OriginalUbyte)
 
-        clear_border(bw)
-
-        label_image = label(image)
-        image_label_overlay = label2rgb(label_image, image=image, bg_label=0)
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.imshow(image_label_overlay)
-
-        for region in regionprops(label_image):
-            if region.area >= 100:
+        for region in regionprops(illustration_label):
+            if region.area >= regionArea:
                 minr, minc, maxr, maxc = region.bbox
-                rect = mpatches.Rectangle(
-                    (minc, minr),
-                    maxc - minc,
-                    maxr - minr,
-                    fill=False,
-                    edgecolor='red',
-                    linewidth=2
-                )
+
+                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                        fill=False, edgecolor=illustrationColor, linewidth=2)
+                ax.add_patch(rect)
+        
+        for region in regionprops(headline_label):
+            if region.area >= regionArea:
+                minr, minc, maxr, maxc = region.bbox
+
+                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                        fill=False, edgecolor=headlineColor, linewidth=2)
+                ax.add_patch(rect)
+
+        for region in regionprops(title_label):
+            if region.area >= regionArea:
+                minr, minc, maxr, maxc = region.bbox
+
+                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                        fill=False, edgecolor=titleColor, linewidth=2)
+                ax.add_patch(rect)
+
+        for region in regionprops(text_label):
+            if region.area >= regionArea:
+                minr, minc, maxr, maxc = region.bbox
+
+                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                        fill=False, edgecolor=textColor, linewidth=2)
                 ax.add_patch(rect)
 
         ax.set_axis_off()
         plt.tight_layout()
-        plt.show()
+        plt.savefig(outputPath+"__BORDER_"+self.OriginalName)
