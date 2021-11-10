@@ -2,6 +2,7 @@ from PIL import Image, ImageColor
 from sklearn import preprocessing
 import numpy as np
 import scipy as sp
+import cv2
 from app_config import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -14,7 +15,22 @@ from skimage.morphology import closing, square
 from skimage.color import label2rgb
 from skimage.util import img_as_ubyte
 from skimage.io import imread
+from skimage import io, morphology
 
+def applyOnLayout(pathToLayoutImage=""):
+    image = cv2.imread(pathToLayoutImage)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (3,3), 0)
+    thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    cnts = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+    for c in cnts:
+        area = cv2.contourArea(c)
+        if area < 5500:
+            cv2.drawContours(thresh, [c], -1, (0,0,0), -1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+    close = 255 - cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+    return close
 
 class ImageItem:
     def __init__(self, originalImageName="", headlineCSVName="",
@@ -129,7 +145,8 @@ class ImageItem:
                     self.title[row][col]=0
                 if self.text[row][col] <= lowLimit:
                     self.text[row][col]=0
-        
+
+    # Create matrix for each class with 0 and 1 values   
     def CreateColorLayout(self):
         for row in range(self.rows):
             for col in range(self.cols):
@@ -151,6 +168,7 @@ class ImageItem:
                 elif maxValue == self.text[row][col]:
                     self.textColor[row][col] = 1
     
+    # color each matrix with specific color
     def ColorLayoutsToImages(self):
         self.illustrationImage = Image.new(
             mode='RGB',
@@ -196,6 +214,7 @@ class ImageItem:
         self.titleImage.save(outputPath + "_TITLE_" + self.OriginalName)
         self.textImage.save(outputPath + "_TEXT_" + self.OriginalName)
     
+    # combine all matrices in one image
     def AllLayoutsOnImage(self):
         self.AllLayouts = Image.new(mode='RGB', size=(self.cols, self.rows))
         for i in range(self.rows):
@@ -222,39 +241,44 @@ class ImageItem:
                     )
         self.AllLayouts.save(outputPath + "_ALL_" + self.OriginalName)
 
+    # overlay resulted matrix from previous function on original resized image
     def OverlayOnImage(self):
         self.OriginalImage = self.OriginalImage.convert("RGBA")
         self.AllLayouts = self.AllLayouts.convert("RGBA")
         resultedImage = Image.blend(self.OriginalImage, self.AllLayouts, 0.5)
         resultedImage.save(outputPath + "__OVERLAY_" + self.OriginalName)
 
-    # only for test by now
-    def ApplyGaussianFilter(self):
-        sigma_y = 500.0
-        sigma_x = 500.0
-        sigma = [sigma_y, sigma_x]
-        self.illustrationColor = sp.ndimage.filters.gaussian_filter(
-            self.illustrationColor,
-            sigma,
-            mode='constant'
-        )
-        self.headlineColor = sp.ndimage.filters.gaussian_filter(
-            self.headlineColor,
-            sigma,
-            mode='constant'
-        )
-        self.titleColor = sp.ndimage.filters.gaussian_filter(
-            self.titleColor,
-            sigma,
-            mode='constant'
-        )
-        self.textColor = sp.ndimage.filters.gaussian_filter(
-            self.textColor,
-            sigma,
-            mode='constant'
-        )
-    
-    # only for test by now
+    # remove small objects
+    def RemoveSmallObjects(self):
+        self.illustrationImage = Image.new(mode = 'RGB', size = (self.cols, self.rows))
+        self.headlineImage = Image.new(mode = 'RGB', size = (self.cols, self.rows))
+        self.titleImage = Image.new(mode = 'RGB', size = (self.cols, self.rows))
+        self.textImage = Image.new(mode = 'RGB', size = (self.cols, self.rows))
+
+
+        ilustrationIMG=applyOnLayout(outputPath+"_ILLUSTRATION_"+self.OriginalName)
+        headlineIMG=applyOnLayout(outputPath+"_HEADLINE_"+self.OriginalName)
+        titleIMG=applyOnLayout(outputPath+"_TITLE_"+self.OriginalName)
+        textIMG=applyOnLayout(outputPath+"_TEXT_"+self.OriginalName)
+
+        for i in range(self.rows):
+            for j in range(self.cols):
+                if ilustrationIMG[i][j] > 0:
+                    self.illustrationImage.putpixel((j,i), ImageColor.getcolor(illustrationColor, 'RGB'))
+                if headlineIMG[i][j] > 0:
+                    self.headlineImage.putpixel((j,i), ImageColor.getcolor(headlineColor, 'RGB'))
+                if titleIMG[i][j] > 0:
+                    self.titleImage.putpixel((j,i), ImageColor.getcolor(titleColor, 'RGB'))
+                if textIMG[i][j] > 0:
+                    self.textImage.putpixel((j,i), ImageColor.getcolor(textColor, 'RGB'))
+
+
+        self.illustrationImage.save(outputPath+"_ILLUSTRATION_"+self.OriginalName)
+        self.headlineImage.save(outputPath+"_HEADLINE_"+self.OriginalName)
+        self.titleImage.save(outputPath+"_TITLE_"+self.OriginalName)
+        self.textImage.save(outputPath+"_TEXT_"+self.OriginalName)
+
+    # draw rectangles on image
     def ApplyBorders(self):
         self.OriginalUbyte = img_as_ubyte(imread(resizedPath + "_RESIZED_" + self.OriginalName, as_gray=False))
         self.IllustrationUbyte = img_as_ubyte(imread(outputPath+"_ILLUSTRATION_"+self.OriginalName, as_gray=True))
@@ -267,7 +291,7 @@ class ImageItem:
         headline_label=label(self.HeadlineUbyte)
         title_label=label(self.TitleUbyte)
         text_label=label(self.TextUbyte)
-    
+
         fig, ax = plt.subplots(figsize=(self.cols/100, self.rows/100))
         ax.imshow(self.OriginalUbyte)
 
